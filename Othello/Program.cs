@@ -8,11 +8,14 @@ namespace Othello
 	public class OthelloGame
 	{
 		private const int BoardSize = 8;
+		private const int MinimaxDepth = 10;
 		private char[,] board;
 		private Player currentPlayer;
 		private Dictionary<Player, char> playerSymbols;
 		private int blackScore;
 		private int whiteScore;
+		private bool aiEnabled;
+		private Player aiPlayer;
 
 		// Positional weights for heuristic evaluation
 		private readonly int[,] positionWeights = new int[8, 8]
@@ -27,7 +30,7 @@ namespace Othello
 			{ 120, -20,  20,   5,   5,  20, -20, 120 }
 		};
 
-		public OthelloGame()
+		public OthelloGame(bool enableAI = false, Player aiPlaysAs = Player.White)
 		{
 			board = new char[BoardSize, BoardSize];
 			playerSymbols = new Dictionary<Player, char>
@@ -35,6 +38,8 @@ namespace Othello
 				{ Player.Black, 'B' },
 				{ Player.White, 'W' }
 			};
+			aiEnabled = enableAI;
+			aiPlayer = aiPlaysAs;
 			InitializeBoard();
 			currentPlayer = Player.Black;
 			UpdateScores();
@@ -61,7 +66,12 @@ namespace Othello
 		public void Play()
 		{
 			Console.WriteLine("Welcome to Othello!");
+			if (aiEnabled)
+			{
+				Console.WriteLine($"AI is playing as {aiPlayer} (depth {MinimaxDepth}).");
+			}
 			Console.WriteLine("Black (B) moves first. Enter moves as row and column numbers (0-7).");
+			Console.WriteLine("Type 'hint' for a suggested move or 'quit' to end the game.");
 
 			while (true)
 			{
@@ -69,14 +79,25 @@ namespace Othello
 				Console.WriteLine($"Current player: {currentPlayer} ({playerSymbols[currentPlayer]})");
 				Console.WriteLine($"Score - Black: {blackScore}, White: {whiteScore}");
 
-				if (!HasValidMove(currentPlayer))
+				if (!HasValidMove(currentPlayer, board))
 				{
 					Console.WriteLine($"No valid moves for {currentPlayer}. Passing turn.");
-					if (!HasValidMove(GetOpponent(currentPlayer)))
+					if (!HasValidMove(GetOpponent(currentPlayer), board))
 					{
 						Console.WriteLine("No valid moves for either player. Game over!");
 						break;
 					}
+					currentPlayer = GetOpponent(currentPlayer);
+					continue;
+				}
+
+				// AI move
+				if (aiEnabled && currentPlayer == aiPlayer)
+				{
+					Console.WriteLine("AI is thinking...");
+					var (sugRow, sugCol, _) = FindBestMove(currentPlayer);
+					Console.WriteLine($"AI plays: {sugRow} {sugCol}");
+					MakeMove(sugRow, sugCol, currentPlayer);
 					currentPlayer = GetOpponent(currentPlayer);
 					continue;
 				}
@@ -91,8 +112,8 @@ namespace Othello
 				}
 				else if (input == "hint")
 				{
-					var (sugrow, sugcol, score) = SuggestBestMove(currentPlayer);
-					Console.WriteLine($"Suggested move: {sugrow} {sugcol} (estimated advantage: {score})");
+					var (sugRow, sugCol, score) = FindBestMove(currentPlayer);
+					Console.WriteLine($"Suggested move: {sugRow} {sugCol} (score: {score})");
 					continue;
 				}
 
@@ -103,7 +124,7 @@ namespace Othello
 					continue;
 				}
 
-				if (IsValidMove(row, col, currentPlayer))
+				if (IsValidMove(row, col, currentPlayer, board))
 				{
 					MakeMove(row, col, currentPlayer);
 					currentPlayer = GetOpponent(currentPlayer);
@@ -118,130 +139,270 @@ namespace Othello
 			DetermineWinner();
 		}
 
-
-		public (int row, int col, int score) SuggestBestMove(Player player)
+		public (int row, int col, int score) FindBestMove(Player player)
 		{
-			List<(int row, int col, int score)> validMoves = new List<(int, int, int)>();
+			var validMoves = GetValidMoves(player, board);
+			if (!validMoves.Any()) return (-1, -1, 0);
+
+			int bestScore = int.MinValue;
+			(int row, int col) bestMove = validMoves[0];
+
+			foreach (var (row, col) in validMoves)
+			{
+				char[,] newBoard = (char[,])board.Clone();
+				newBoard[row, col] = playerSymbols[player];
+				FlipPiecesInTempBoard(row, col, player, newBoard);
+
+				int score = Minimax(newBoard, GetOpponent(player), MinimaxDepth - 1, int.MinValue, int.MaxValue, false);
+
+				if (score > bestScore)
+				{
+					bestScore = score;
+					bestMove = (row, col);
+				}
+			}
+
+			return (bestMove.row, bestMove.col, bestScore);
+		}
+
+		private int Minimax(char[,] boardState, Player currentPlayer, int depth, int alpha, int beta, bool isMaximizing)
+		{
+			// Base case: terminal node or depth limit reached
+			if (depth == 0 || !HasValidMove(currentPlayer, boardState))
+			{
+				return EvaluateBoard(boardState, isMaximizing ? currentPlayer : GetOpponent(currentPlayer));
+			}
+
+			var validMoves = GetValidMoves(currentPlayer, boardState);
+
+			if (isMaximizing)
+			{
+				int maxEval = int.MinValue;
+				foreach (var (row, col) in validMoves)
+				{
+					char[,] newBoard = (char[,])boardState.Clone();
+					newBoard[row, col] = playerSymbols[currentPlayer];
+					FlipPiecesInTempBoard(row, col, currentPlayer, newBoard);
+
+					int eval = Minimax(newBoard, GetOpponent(currentPlayer), depth - 1, alpha, beta, false);
+					maxEval = Math.Max(maxEval, eval);
+					alpha = Math.Max(alpha, eval);
+					if (beta <= alpha) break;
+				}
+				return maxEval;
+			}
+			else
+			{
+				int minEval = int.MaxValue;
+				foreach (var (row, col) in validMoves)
+				{
+					char[,] newBoard = (char[,])boardState.Clone();
+					newBoard[row, col] = playerSymbols[currentPlayer];
+					FlipPiecesInTempBoard(row, col, currentPlayer, newBoard);
+
+					int eval = Minimax(newBoard, GetOpponent(currentPlayer), depth - 1, alpha, beta, true);
+					minEval = Math.Min(minEval, eval);
+					beta = Math.Min(beta, eval);
+					if (beta <= alpha) break;
+				}
+				return minEval;
+			}
+		}
+
+		private List<(int row, int col)> GetValidMoves(Player player, char[,] boardState = null)
+		{
+			boardState = boardState ?? board;
+			var validMoves = new List<(int, int)>();
 
 			for (int row = 0; row < BoardSize; row++)
 			{
 				for (int col = 0; col < BoardSize; col++)
 				{
-					if (IsValidMove(row, col, player))
+					if (IsValidMove(row, col, player, boardState))
 					{
-						int score = EvaluateMove(row, col, player);
-						validMoves.Add((row, col, score));
+						validMoves.Add((row, col));
 					}
 				}
 			}
 
-			if (validMoves.Count == 0)
-				return (-1, -1, 0); // No valid moves
-
-			// Sort by score descending and return the best move
-			validMoves.Sort((a, b) => b.score.CompareTo(a.score));
-			return validMoves[0];
+			return validMoves;
 		}
 
-		private int EvaluateMove(int row, int col, Player player)
+		private int EvaluateBoard(char[,] boardState, Player forPlayer)
 		{
-			char playerSymbol = playerSymbols[player];
-			char opponentSymbol = playerSymbols[GetOpponent(player)];
-			int totalScore = 0;
+			int playerScore = 0;
+			int opponentScore = 0;
+			char playerSymbol = playerSymbols[forPlayer];
+			char opponentSymbol = playerSymbols[GetOpponent(forPlayer)];
 
-			// 1. Immediate point advantage (number of pieces flipped)
-			int piecesFlipped = CountPiecesFlipped(row, col, player);
+			for (int row = 0; row < BoardSize; row++)
+			{
+				for (int col = 0; col < BoardSize; col++)
+				{
+					if (boardState[row, col] == playerSymbol)
+					{
+						playerScore += positionWeights[row, col];
+					}
+					else if (boardState[row, col] == opponentSymbol)
+					{
+						opponentScore += positionWeights[row, col];
+					}
+				}
+			}
 
-			// 2. Positional advantage (corner and edge control)
-			int positionalValue = positionWeights[row, col];
+			// Mobility calculation
+			int playerMobility = GetValidMoves(forPlayer, boardState).Count;
+			int opponentMobility = GetValidMoves(GetOpponent(forPlayer), boardState).Count;
 
-			// 3. Mobility (number of future moves this move enables)
-			int mobility = CalculateMobilityImpact(row, col, player);
-
-			// 4. Stability (how likely the piece is to stay flipped)
-			int stability = CalculateStability(row, col, player);
+			// Corner control bonus
+			int playerCorners = CountCorners(forPlayer, boardState);
+			int opponentCorners = CountCorners(GetOpponent(forPlayer), boardState);
 
 			// Combine factors with weights
-			totalScore = (piecesFlipped * 10) + (positionalValue * 5) + (mobility * 3) + (stability * 2);
+			int score = (playerScore - opponentScore)
+					   + (playerMobility - opponentMobility) * 5
+					   + (playerCorners - opponentCorners) * 25;
 
-			return totalScore;
+			return score;
 		}
 
-		private int CountPiecesFlipped(int row, int col, Player player)
+		private int CountCorners(Player player, char[,] boardState)
 		{
 			char playerSymbol = playerSymbols[player];
-			char opponentSymbol = playerSymbols[GetOpponent(player)];
-			int totalFlipped = 0;
-
-			for (int rowDir = -1; rowDir <= 1; rowDir++)
-			{
-				for (int colDir = -1; colDir <= 1; colDir++)
-				{
-					if (rowDir == 0 && colDir == 0) continue;
-
-					int r = row + rowDir;
-					int c = col + colDir;
-					int flippedInDirection = 0;
-
-					while (r >= 0 && r < BoardSize && c >= 0 && c < BoardSize && board[r, c] == opponentSymbol)
-					{
-						flippedInDirection++;
-						r += rowDir;
-						c += colDir;
-					}
-
-					if (r >= 0 && r < BoardSize && c >= 0 && c < BoardSize && board[r, c] == playerSymbol)
-					{
-						totalFlipped += flippedInDirection;
-					}
-				}
-			}
-
-			return totalFlipped;
-		}
-
-		private int CalculateMobilityImpact(int row, int col, Player player)
-		{
-			// Make a copy of the board to simulate the move
-			char[,] tempBoard = (char[,])board.Clone();
-			tempBoard[row, col] = playerSymbols[player];
-			FlipPiecesInTempBoard(row, col, player, tempBoard);
-
-			// Count valid moves for player after this move
-			int playerMoves = CountValidMoves(player, tempBoard);
-
-			// Count valid moves for opponent after this move
-			int opponentMoves = CountValidMoves(GetOpponent(player), tempBoard);
-
-			return playerMoves - opponentMoves;
-		}
-
-		private int CountValidMoves(Player player, char[,] boardState)
-		{
 			int count = 0;
-			for (int row = 0; row < BoardSize; row++)
-			{
-				for (int col = 0; col < BoardSize; col++)
-				{
-					//if (IsValidMove(row, col, player, boardState)) //TODO: fix it
-					//{
-					//	count++;
-					//}
-				}
-			}
+
+			// Check all four corners
+			if (boardState[0, 0] == playerSymbol) count++;
+			if (boardState[0, 7] == playerSymbol) count++;
+			if (boardState[7, 0] == playerSymbol) count++;
+			if (boardState[7, 7] == playerSymbol) count++;
+
 			return count;
 		}
 
-		private int CalculateStability(int row, int col, Player player)
-		{
-			// Simple stability measure - corners are most stable, edges next, center least
-			if ((row == 0 || row == 7) && (col == 0 || col == 7))
-				return 10; // Corner
-			else if (row == 0 || row == 7 || col == 0 || col == 7)
-				return 5;  // Edge
-			else
-				return 1;  // Center
-		}
+		//public (int row, int col, int score) SuggestBestMove(Player player)
+		//{
+		//	List<(int row, int col, int score)> validMoves = new List<(int, int, int)>();
+
+		//	for (int row = 0; row < BoardSize; row++)
+		//	{
+		//		for (int col = 0; col < BoardSize; col++)
+		//		{
+		//			if (IsValidMove(row, col, player))
+		//			{
+		//				int score = EvaluateMove(row, col, player);
+		//				validMoves.Add((row, col, score));
+		//			}
+		//		}
+		//	}
+
+		//	if (validMoves.Count == 0)
+		//		return (-1, -1, 0); // No valid moves
+
+		//	// Sort by score descending and return the best move
+		//	validMoves.Sort((a, b) => b.score.CompareTo(a.score));
+		//	return validMoves[0];
+		//}
+
+		//private int EvaluateMove(int row, int col, Player player)
+		//{
+		//	char playerSymbol = playerSymbols[player];
+		//	char opponentSymbol = playerSymbols[GetOpponent(player)];
+		//	int totalScore = 0;
+
+		//	// 1. Immediate point advantage (number of pieces flipped)
+		//	int piecesFlipped = CountPiecesFlipped(row, col, player);
+
+		//	// 2. Positional advantage (corner and edge control)
+		//	int positionalValue = positionWeights[row, col];
+
+		//	// 3. Mobility (number of future moves this move enables)
+		//	int mobility = CalculateMobilityImpact(row, col, player);
+
+		//	// 4. Stability (how likely the piece is to stay flipped)
+		//	int stability = CalculateStability(row, col, player);
+
+		//	// Combine factors with weights
+		//	totalScore = (piecesFlipped * 10) + (positionalValue * 5) + (mobility * 3) + (stability * 2);
+
+		//	return totalScore;
+		//}
+
+		//private int CountPiecesFlipped(int row, int col, Player player)
+		//{
+		//	char playerSymbol = playerSymbols[player];
+		//	char opponentSymbol = playerSymbols[GetOpponent(player)];
+		//	int totalFlipped = 0;
+
+		//	for (int rowDir = -1; rowDir <= 1; rowDir++)
+		//	{
+		//		for (int colDir = -1; colDir <= 1; colDir++)
+		//		{
+		//			if (rowDir == 0 && colDir == 0) continue;
+
+		//			int r = row + rowDir;
+		//			int c = col + colDir;
+		//			int flippedInDirection = 0;
+
+		//			while (r >= 0 && r < BoardSize && c >= 0 && c < BoardSize && board[r, c] == opponentSymbol)
+		//			{
+		//				flippedInDirection++;
+		//				r += rowDir;
+		//				c += colDir;
+		//			}
+
+		//			if (r >= 0 && r < BoardSize && c >= 0 && c < BoardSize && board[r, c] == playerSymbol)
+		//			{
+		//				totalFlipped += flippedInDirection;
+		//			}
+		//		}
+		//	}
+
+		//	return totalFlipped;
+		//}
+
+		//private int CalculateMobilityImpact(int row, int col, Player player)
+		//{
+		//	// Make a copy of the board to simulate the move
+		//	char[,] tempBoard = (char[,])board.Clone();
+		//	tempBoard[row, col] = playerSymbols[player];
+		//	FlipPiecesInTempBoard(row, col, player, tempBoard);
+
+		//	// Count valid moves for player after this move
+		//	int playerMoves = CountValidMoves(player, tempBoard);
+
+		//	// Count valid moves for opponent after this move
+		//	int opponentMoves = CountValidMoves(GetOpponent(player), tempBoard);
+
+		//	return playerMoves - opponentMoves;
+		//}
+
+		//private int CountValidMoves(Player player, char[,] boardState)
+		//{
+		//	int count = 0;
+		//	for (int row = 0; row < BoardSize; row++)
+		//	{
+		//		for (int col = 0; col < BoardSize; col++)
+		//		{
+		//			//if (IsValidMove(row, col, player, boardState)) //TODO: fix it
+		//			//{
+		//			//	count++;
+		//			//}
+		//		}
+		//	}
+		//	return count;
+		//}
+
+		//private int CalculateStability(int row, int col, Player player)
+		//{
+		//	// Simple stability measure - corners are most stable, edges next, center least
+		//	if ((row == 0 || row == 7) && (col == 0 || col == 7))
+		//		return 10; // Corner
+		//	else if (row == 0 || row == 7 || col == 0 || col == 7)
+		//		return 5;  // Edge
+		//	else
+		//		return 1;  // Center
+		//}
 
 		private void FlipPiecesInTempBoard(int row, int col, Player player, char[,] tempBoard)
 		{
@@ -286,14 +447,14 @@ namespace Othello
 			}
 		}
 
-		private bool IsValidMove(int row, int col, Player player)
+		private bool IsValidMove(int row, int col, Player player, char[,] boardState)
 		{
 			// Check if position is on the board
 			if (row < 0 || row >= BoardSize || col < 0 || col >= BoardSize)
 				return false;
 
 			// Check if position is empty
-			if (board[row, col] != '.')
+			if (boardState[row, col] != '.')
 				return false;
 
 			char playerSymbol = playerSymbols[player];
@@ -312,11 +473,11 @@ namespace Othello
 
 					while (r >= 0 && r < BoardSize && c >= 0 && c < BoardSize)
 					{
-						if (board[r, c] == opponentSymbol)
+						if (boardState[r, c] == opponentSymbol)
 						{
 							foundOpponent = true;
 						}
-						else if (board[r, c] == playerSymbol && foundOpponent)
+						else if (boardState[r, c] == playerSymbol && foundOpponent)
 						{
 							return true; // Valid move
 						}
@@ -383,13 +544,13 @@ namespace Othello
 			UpdateScores();
 		}
 
-		private bool HasValidMove(Player player)
+		private bool HasValidMove(Player player, char[,] boardState)
 		{
 			for (int row = 0; row < BoardSize; row++)
 			{
 				for (int col = 0; col < BoardSize; col++)
 				{
-					if (IsValidMove(row, col, player))
+					if (IsValidMove(row, col, player, boardState))
 					{
 						return true;
 					}
@@ -464,7 +625,22 @@ namespace Othello
 	{
 		static void Main(string[] args)
 		{
-			OthelloGame game = new OthelloGame();
+			Console.WriteLine("Choose game mode:");
+			Console.WriteLine("1. Human vs Human");
+			Console.WriteLine("2. Human vs AI (AI plays White)");
+			Console.WriteLine("3. Human vs AI (AI plays Black)");
+			Console.Write("Enter choice (1-3): ");
+
+			int choice;
+			while (!int.TryParse(Console.ReadLine(), out choice) || choice < 1 || choice > 3)
+			{
+				Console.Write("Invalid input. Enter 1, 2, or 3: ");
+			}
+
+			bool aiEnabled = choice != 1;
+			Player aiPlayer = choice == 3 ? Player.Black : Player.White;
+
+			OthelloGame game = new OthelloGame(aiEnabled, aiPlayer);
 			game.Play();
 		}
 	}
