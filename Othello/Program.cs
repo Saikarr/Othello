@@ -14,6 +14,19 @@ namespace Othello
 		private int blackScore;
 		private int whiteScore;
 
+		// Positional weights for heuristic evaluation
+		private readonly int[,] positionWeights = new int[8, 8]
+		{
+			{ 120, -20,  20,   5,   5,  20, -20, 120 },
+			{ -20, -40,  -5,  -5,  -5,  -5, -40, -20 },
+			{  20,  -5,  15,   3,   3,  15,  -5,  20 },
+			{   5,  -5,   3,   3,   3,   3,  -5,   5 },
+			{   5,  -5,   3,   3,   3,   3,  -5,   5 },
+			{  20,  -5,  15,   3,   3,  15,  -5,  20 },
+			{ -20, -40,  -5,  -5,  -5,  -5, -40, -20 },
+			{ 120, -20,  20,   5,   5,  20, -20, 120 }
+		};
+
 		public OthelloGame()
 		{
 			board = new char[BoardSize, BoardSize];
@@ -68,12 +81,19 @@ namespace Othello
 					continue;
 				}
 
-				Console.Write("Enter your move (row col): ");
-				string input = Console.ReadLine();
-				if (input.ToLower() == "quit")
+				Console.Write("Enter your move (row col), 'hint', or 'quit': ");
+				string input = Console.ReadLine().Trim().ToLower();
+
+				if (input == "quit")
 				{
 					Console.WriteLine("Game ended by user.");
 					break;
+				}
+				else if (input == "hint")
+				{
+					var (sugrow, sugcol, score) = SuggestBestMove(currentPlayer);
+					Console.WriteLine($"Suggested move: {sugrow} {sugcol} (estimated advantage: {score})");
+					continue;
 				}
 
 				string[] parts = input.Split(' ');
@@ -96,6 +116,174 @@ namespace Othello
 
 			PrintBoard();
 			DetermineWinner();
+		}
+
+
+		public (int row, int col, int score) SuggestBestMove(Player player)
+		{
+			List<(int row, int col, int score)> validMoves = new List<(int, int, int)>();
+
+			for (int row = 0; row < BoardSize; row++)
+			{
+				for (int col = 0; col < BoardSize; col++)
+				{
+					if (IsValidMove(row, col, player))
+					{
+						int score = EvaluateMove(row, col, player);
+						validMoves.Add((row, col, score));
+					}
+				}
+			}
+
+			if (validMoves.Count == 0)
+				return (-1, -1, 0); // No valid moves
+
+			// Sort by score descending and return the best move
+			validMoves.Sort((a, b) => b.score.CompareTo(a.score));
+			return validMoves[0];
+		}
+
+		private int EvaluateMove(int row, int col, Player player)
+		{
+			char playerSymbol = playerSymbols[player];
+			char opponentSymbol = playerSymbols[GetOpponent(player)];
+			int totalScore = 0;
+
+			// 1. Immediate point advantage (number of pieces flipped)
+			int piecesFlipped = CountPiecesFlipped(row, col, player);
+
+			// 2. Positional advantage (corner and edge control)
+			int positionalValue = positionWeights[row, col];
+
+			// 3. Mobility (number of future moves this move enables)
+			int mobility = CalculateMobilityImpact(row, col, player);
+
+			// 4. Stability (how likely the piece is to stay flipped)
+			int stability = CalculateStability(row, col, player);
+
+			// Combine factors with weights
+			totalScore = (piecesFlipped * 10) + (positionalValue * 5) + (mobility * 3) + (stability * 2);
+
+			return totalScore;
+		}
+
+		private int CountPiecesFlipped(int row, int col, Player player)
+		{
+			char playerSymbol = playerSymbols[player];
+			char opponentSymbol = playerSymbols[GetOpponent(player)];
+			int totalFlipped = 0;
+
+			for (int rowDir = -1; rowDir <= 1; rowDir++)
+			{
+				for (int colDir = -1; colDir <= 1; colDir++)
+				{
+					if (rowDir == 0 && colDir == 0) continue;
+
+					int r = row + rowDir;
+					int c = col + colDir;
+					int flippedInDirection = 0;
+
+					while (r >= 0 && r < BoardSize && c >= 0 && c < BoardSize && board[r, c] == opponentSymbol)
+					{
+						flippedInDirection++;
+						r += rowDir;
+						c += colDir;
+					}
+
+					if (r >= 0 && r < BoardSize && c >= 0 && c < BoardSize && board[r, c] == playerSymbol)
+					{
+						totalFlipped += flippedInDirection;
+					}
+				}
+			}
+
+			return totalFlipped;
+		}
+
+		private int CalculateMobilityImpact(int row, int col, Player player)
+		{
+			// Make a copy of the board to simulate the move
+			char[,] tempBoard = (char[,])board.Clone();
+			tempBoard[row, col] = playerSymbols[player];
+			FlipPiecesInTempBoard(row, col, player, tempBoard);
+
+			// Count valid moves for player after this move
+			int playerMoves = CountValidMoves(player, tempBoard);
+
+			// Count valid moves for opponent after this move
+			int opponentMoves = CountValidMoves(GetOpponent(player), tempBoard);
+
+			return playerMoves - opponentMoves;
+		}
+
+		private int CountValidMoves(Player player, char[,] boardState)
+		{
+			int count = 0;
+			for (int row = 0; row < BoardSize; row++)
+			{
+				for (int col = 0; col < BoardSize; col++)
+				{
+					//if (IsValidMove(row, col, player, boardState)) //TODO: fix it
+					//{
+					//	count++;
+					//}
+				}
+			}
+			return count;
+		}
+
+		private int CalculateStability(int row, int col, Player player)
+		{
+			// Simple stability measure - corners are most stable, edges next, center least
+			if ((row == 0 || row == 7) && (col == 0 || col == 7))
+				return 10; // Corner
+			else if (row == 0 || row == 7 || col == 0 || col == 7)
+				return 5;  // Edge
+			else
+				return 1;  // Center
+		}
+
+		private void FlipPiecesInTempBoard(int row, int col, Player player, char[,] tempBoard)
+		{
+			char playerSymbol = playerSymbols[player];
+			char opponentSymbol = playerSymbols[GetOpponent(player)];
+
+			for (int rowDir = -1; rowDir <= 1; rowDir++)
+			{
+				for (int colDir = -1; colDir <= 1; colDir++)
+				{
+					if (rowDir == 0 && colDir == 0) continue;
+
+					int r = row + rowDir;
+					int c = col + colDir;
+					List<Tuple<int, int>> piecesToFlip = new List<Tuple<int, int>>();
+					bool foundOpponent = false;
+
+					while (r >= 0 && r < BoardSize && c >= 0 && c < BoardSize)
+					{
+						if (tempBoard[r, c] == opponentSymbol)
+						{
+							piecesToFlip.Add(Tuple.Create(r, c));
+							foundOpponent = true;
+						}
+						else if (tempBoard[r, c] == playerSymbol && foundOpponent)
+						{
+							foreach (var piece in piecesToFlip)
+							{
+								tempBoard[piece.Item1, piece.Item2] = playerSymbol;
+							}
+							break;
+						}
+						else
+						{
+							break;
+						}
+
+						r += rowDir;
+						c += colDir;
+					}
+				}
+			}
 		}
 
 		private bool IsValidMove(int row, int col, Player player)
