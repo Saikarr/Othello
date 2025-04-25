@@ -55,7 +55,7 @@ namespace Othello
 			return totalFlipped;
 		}
 
-		public static int CalculateMobilityImpact(int row, int col, Player player, char[,] boardState, Board board)
+		public static float CalculateMobilityImpact(int row, int col, Player player, char[,] boardState, Board board)
 		{
 			// Make a copy of the board to simulate the move
 			char[,] tempBoard = (char[,])boardState.Clone();
@@ -68,7 +68,7 @@ namespace Othello
 			// Count valid moves for opponent after this move
 			int opponentMoves = CountValidMoves(OthelloGame.GetOpponent(player), tempBoard, board);
 
-			return playerMoves - opponentMoves;
+			return (playerMoves-opponentMoves)/(float)(playerMoves+opponentMoves+2);
 		}
 
 		public static int CountValidMoves(Player player, char[,] boardState, Board board)
@@ -78,10 +78,10 @@ namespace Othello
 			{
 				for (int col = 0; col < board.Size; col++)
 				{
-					//if (IsValidMove(row, col, player, boardState)) //TODO: fix it
-					//{
-					//	count++;
-					//}
+					if (board.IsValidMove(row, col, player, boardState)) //TODO: fix it
+					{
+						count++;
+					}
 				}
 			}
 			return count;
