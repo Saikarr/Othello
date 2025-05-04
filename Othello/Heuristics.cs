@@ -8,52 +8,49 @@ namespace Othello
 {
 	public static class Heuristics // TODO: fix and add heuristics (these arent really functional, they have to evaluate the state of the board not the move)
 	{
-		public static int CountCorners(Player player, char[,] boardState, Board board)
+		public static char GetSymbol(Player player)
 		{
-			char playerSymbol = board.PlayerSymbols[player];
-			int count = 0;
-
-			// Check all four corners
-			if (boardState[0, 0] == playerSymbol) count++;
-			if (boardState[0, 7] == playerSymbol) count++;
-			if (boardState[7, 0] == playerSymbol) count++;
-			if (boardState[7, 7] == playerSymbol) count++;
-
-			return count;
+			return player == Player.Black ? 'B' : 'W';
+		}
+		public static Player GetOpponent(Player player)
+		{
+			return player == Player.Black ? Player.White : Player.Black;
 		}
 
-		public static int CountPiecesFlipped(int row, int col, Player player, char[,] boardState, Board board)
+
+
+		public static int CalculatePieceCount(Board board, Player player)
 		{
-			char playerSymbol = board.PlayerSymbols[player];
-			char opponentSymbol = board.PlayerSymbols[OthelloGame.GetOpponent(player)];
-			int totalFlipped = 0;
+			char playerSymbol = GetSymbol(player);
+			char opponentSymbol = GetSymbol(GetOpponent(player));
+			int playerCount = 0, opponentCount = 0;
 
-			for (int rowDir = -1; rowDir <= 1; rowDir++)
-			{
-				for (int colDir = -1; colDir <= 1; colDir++)
+			for (int i = 0; i < 8; i++)
+				for (int j = 0; j < 8; j++)
 				{
-					if (rowDir == 0 && colDir == 0) continue;
-
-					int r = row + rowDir;
-					int c = col + colDir;
-					int flippedInDirection = 0;
-
-					while (r >= 0 && r < board.Size && c >= 0 && c < board.Size && boardState[r, c] == opponentSymbol)
-					{
-						flippedInDirection++;
-						r += rowDir;
-						c += colDir;
-					}
-
-					if (r >= 0 && r < board.Size && c >= 0 && c < board.Size && boardState[r, c] == playerSymbol)
-					{
-						totalFlipped += flippedInDirection;
-					}
+					if (board.BoardState[i, j] == playerSymbol) playerCount++;
+					else if (board.BoardState[i, j] == opponentSymbol) opponentCount++;
 				}
+
+			return playerCount - opponentCount;
+		}
+		public static int CalculateCornerControl(Board board, Player player)
+		{
+			char playerSymbol = GetSymbol(player);
+			char opponentSymbol = GetSymbol(GetOpponent(player));
+
+			(int, int)[] corners = { (0, 0), (0, 7), (7, 0), (7, 7) };
+			int playerCorners = 0, opponentCorners = 0;
+
+			foreach (var (x, y) in corners)
+			{
+				if (board.BoardState[x, y] == playerSymbol) playerCorners++;
+				else if (board.BoardState[x, y] == opponentSymbol) opponentCorners++;
 			}
 
-			return totalFlipped;
+			return 25 * (playerCorners - opponentCorners);
 		}
+
 
 		public static float CalculateMobilityImpact(int row, int col, Player player, char[,] boardState, Board board)
 		{
@@ -78,7 +75,7 @@ namespace Othello
 			{
 				for (int col = 0; col < board.Size; col++)
 				{
-					if (board.IsValidMove(row, col, player, boardState)) //TODO: fix it
+					if (board.IsValidMove(row, col, player, boardState)) 
 					{
 						count++;
 					}
@@ -92,7 +89,6 @@ namespace Othello
 			char[,] state = board.BoardState;
 			int size = state.GetLength(0);
 
-			// Convert board edge to 0=empty, 1=black, 2=white
 			int Convert(char c)
 			{
 				return c == '.' ? 0 : c == 'B' ? 1 : 2;
@@ -103,19 +99,19 @@ namespace Othello
 				int[] edge = new int[8];
 				switch (direction)
 				{
-					case 0: // Top row
+					case 0:
 						for (int i = 0; i < 8; i++)
 							edge[i] = Convert(state[0, i]);
 						break;
-					case 1: // Bottom row
+					case 1: 
 						for (int i = 0; i < 8; i++)
 							edge[i] = Convert(state[7, i]);
 						break;
-					case 2: // Left column
+					case 2: 
 						for (int i = 0; i < 8; i++)
 							edge[i] = Convert(state[i, 0]);
 						break;
-					case 3: // Right column
+					case 3: 
 						for (int i = 0; i < 8; i++)
 							edge[i] = Convert(state[i, 7]);
 						break;

@@ -10,7 +10,7 @@ namespace Othello
 		public const int BLACK = 1;
 		public const int WHITE = 2;
 
-		// Public static table accessible globally
+
 		public static int[] StabilityTable { get; private set; } = new int[6561]; // 3^8
 
 		static EdgeStability()
@@ -105,7 +105,6 @@ namespace Othello
 			}
 		}
 
-		// --- Helpers ---
 
 		private static int[] DecodeConfiguration(int index)
 		{

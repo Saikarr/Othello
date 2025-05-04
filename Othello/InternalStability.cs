@@ -7,10 +7,10 @@
 	{
 		private static readonly (int dr, int dc)[] Directions = new (int, int)[]
 		{
-		(-1, 0), (1, 0),    // Vertical
-        (0, -1), (0, 1),    // Horizontal
-        (-1, -1), (1, 1),   // Diagonal \
-        (-1, 1), (1, -1)    // Diagonal /
+		(-1, 0), (1, 0), 
+        (0, -1), (0, 1),   
+        (-1, -1), (1, 1),   
+        (-1, 1), (1, -1)   
 		};
 
 		public static int CalculateInternalStabilityDifference(Board board)
@@ -20,7 +20,7 @@
 			bool[,] stable = new bool[size, size];
 			Queue<(int, int)> queue = new();
 
-			// Step 1 & 2: Initialize corners
+
 			foreach (var (r, c) in new[] { (0, 0), (0, 7), (7, 0), (7, 7) })
 			{
 				if (state[r, c] != '.')
@@ -30,7 +30,7 @@
 				}
 			}
 
-			// Step 3: Propagate stability
+
 			while (queue.Count > 0)
 			{
 				var (r, c) = queue.Dequeue();
@@ -50,7 +50,6 @@
 				}
 			}
 
-			// Step 4: Compute score difference
 			int blackStable = 0, whiteStable = 0;
 			for (int r = 0; r < size; r++)
 			{
@@ -69,12 +68,12 @@
 
 		private static bool IsStableInAllFourLines(int r, int c, char color, bool[,] stable, char[,] state, int size)
 		{
-			// Check stability along 4 directions: vertical, horizontal, two diagonals
+
 			return
-				HasStableOrEdge(r, c, -1, 0, color, stable, state, size) && // up
-				HasStableOrEdge(r, c, 1, 0, color, stable, state, size) &&  // down
-				HasStableOrEdge(r, c, 0, -1, color, stable, state, size) && // left
-				HasStableOrEdge(r, c, 0, 1, color, stable, state, size);    // right
+				HasStableOrEdge(r, c, -1, 0, color, stable, state, size) && 
+				HasStableOrEdge(r, c, 1, 0, color, stable, state, size) &&  
+				HasStableOrEdge(r, c, 0, -1, color, stable, state, size) && 
+				HasStableOrEdge(r, c, 0, 1, color, stable, state, size);    
 		}
 
 		private static bool HasStableOrEdge(int r, int c, int dr, int dc, char color, bool[,] stable, char[,] state, int size)
