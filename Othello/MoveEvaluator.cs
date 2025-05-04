@@ -153,9 +153,9 @@ namespace Othello
 
 			// 4. Stability (how likely the piece is to stay flipped)
 			int stability = Heuristics.CalculateEdgeStability(row, col, player, board);
-
+			int internalstability = Heuristics.CalculateInternalStability(board,player);
 			// Combine factors with weights
-			totalScore = (piecesFlipped * 10) + (positionalValue * 5) + (int)(mobility * mobilitycoef) + (stability * 2);
+			totalScore = (piecesFlipped * 10) + (positionalValue * 5) + (int)(mobility * mobilitycoef) + (stability * 2)+internalstability;
 
 			return totalScore;
 		}

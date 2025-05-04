@@ -133,6 +133,12 @@ namespace Othello
 			}
 
 			return total;
+
+		}
+		public static int CalculateInternalStability(Board board,Player player)
+		{
+			if (player==Player.Black)return InternalStability.CalculateInternalStabilityDifference(board);
+			else return -InternalStability.CalculateInternalStabilityDifference(board);
 		}
 	}
 }
