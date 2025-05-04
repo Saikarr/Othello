@@ -152,7 +152,7 @@ namespace Othello
 			float mobility = Heuristics.CalculateMobilityImpact(row, col, player, boardState, board);
 
 			// 4. Stability (how likely the piece is to stay flipped)
-			int stability = Heuristics.CalculateStability(row, col, player);
+			int stability = Heuristics.CalculateEdgeStability(row, col, player, board);
 
 			// Combine factors with weights
 			totalScore = (piecesFlipped * 10) + (positionalValue * 5) + (int)(mobility * mobilitycoef) + (stability * 2);

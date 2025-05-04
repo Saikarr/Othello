@@ -20,6 +20,7 @@ namespace Othello
 
 		public OthelloGame(bool enableAI = false, Player aiPlaysAs = Player.White)
 		{
+			
 			Board = new Board(BoardSize, this);
 			playerSymbols = new Dictionary<Player, char>
 			{

@@ -87,15 +87,52 @@ namespace Othello
 			return count;
 		}
 
-		public static int CalculateStability(int row, int col, Player player)
+		public static int CalculateEdgeStability(int row, int col, Player player, Board board)
 		{
-			// Simple stability measure - corners are most stable, edges next, center least
-			if ((row == 0 || row == 7) && (col == 0 || col == 7))
-				return 10; // Corner
-			else if (row == 0 || row == 7 || col == 0 || col == 7)
-				return 5;  // Edge
-			else
-				return 1;  // Center
+			char[,] state = board.BoardState;
+			int size = state.GetLength(0);
+
+			// Convert board edge to 0=empty, 1=black, 2=white
+			int Convert(char c)
+			{
+				return c == '.' ? 0 : c == 'B' ? 1 : 2;
+			}
+
+			int[] ExtractEdge(int direction)
+			{
+				int[] edge = new int[8];
+				switch (direction)
+				{
+					case 0: // Top row
+						for (int i = 0; i < 8; i++)
+							edge[i] = Convert(state[0, i]);
+						break;
+					case 1: // Bottom row
+						for (int i = 0; i < 8; i++)
+							edge[i] = Convert(state[7, i]);
+						break;
+					case 2: // Left column
+						for (int i = 0; i < 8; i++)
+							edge[i] = Convert(state[i, 0]);
+						break;
+					case 3: // Right column
+						for (int i = 0; i < 8; i++)
+							edge[i] = Convert(state[i, 7]);
+						break;
+				}
+				return edge;
+			}
+
+			int total = 0;
+			bool isBlack = player == Player.Black;
+
+			for (int dir = 0; dir < 4; dir++)
+			{
+				int[] edge = ExtractEdge(dir);
+				total += EdgeStability.GetValue(edge, isBlackTurn: isBlack);
+			}
+
+			return total;
 		}
 	}
 }

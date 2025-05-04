@@ -3,40 +3,45 @@ using System.Collections.Generic;
 
 namespace Othello
 {
-	public class EdgeStabilityCalculator
+	public static class EdgeStability
 	{
-		private const int EdgeLength = 8;
-		private const int TotalConfigurations = 6561;
-		private const int EMPTY = 0;
-		private const int BLACK = 1;
-		private const int WHITE = 2;
+		public const int EdgeLength = 8;
+		public const int EMPTY = 0;
+		public const int BLACK = 1;
+		public const int WHITE = 2;
 
-		private int[] stabilityTable = new int[TotalConfigurations];
+		// Public static table accessible globally
+		public static int[] StabilityTable { get; private set; } = new int[6561]; // 3^8
 
-		public void ComputeStabilityTable()
+		static EdgeStability()
 		{
-			for (int i = 0; i < TotalConfigurations; i++)
+			ComputeStabilityTable();
+		}
+
+		private static void ComputeStabilityTable()
+		{
+			for (int i = 0; i < StabilityTable.Length; i++)
 			{
 				int[] config = DecodeConfiguration(i);
-				stabilityTable[i] = StaticEvaluation(config);
+				StabilityTable[i] = StaticEvaluation(config);
 			}
 
 			bool changed;
 			do
 			{
 				changed = false;
-				for (int i = 0; i < TotalConfigurations; i++)
+				for (int i = 0; i < StabilityTable.Length; i++)
 				{
 					int[] config = DecodeConfiguration(i);
 					if (CountDiscs(config) == 0) continue;
 
-					int bestValue = stabilityTable[i];
+					int bestValue = StabilityTable[i];
 					foreach (int move in GetPlayableMoves(config, BLACK))
 					{
 						int[] newConfig = (int[])config.Clone();
 						newConfig[move] = BLACK;
 						int newIndex = EncodeConfiguration(newConfig);
-						int newValue = stabilityTable[newIndex];
+						int newValue = StabilityTable[newIndex];
 						if (newValue > bestValue)
 						{
 							bestValue = newValue;
@@ -44,13 +49,13 @@ namespace Othello
 						}
 					}
 
-					stabilityTable[i] = bestValue;
+					StabilityTable[i] = bestValue;
 				}
 			}
 			while (changed);
 		}
 
-		private int StaticEvaluation(int[] config)
+		private static int StaticEvaluation(int[] config)
 		{
 			int value = 0;
 			for (int i = 0; i < EdgeLength; i++)
@@ -59,42 +64,50 @@ namespace Othello
 				if (disc == EMPTY) continue;
 
 				int weight = GetDiscWeight(i, disc, config);
-				value += disc == BLACK ? weight : -weight;
+				value += (disc == BLACK) ? weight : -weight;
 			}
 			return value;
 		}
 
-		private int GetDiscWeight(int index, int disc, int[] config)
+		private static int GetDiscWeight(int index, int disc, int[] config)
 		{
 			if (IsCorner(index)) return 700;
 
 			bool isStable = IsStable(index, disc, config);
 			bool isSemiStable = IsSemiStable(index, disc, config);
-			bool isUnstable = !isStable && !isSemiStable;
 
 			if (IsASquare(index))
 			{
-				if (isStable) return 1000;
-				if (isSemiStable) return 200;
-				return 75;
+				return isStable ? 1000 : isSemiStable ? 200 : 75;
 			}
 			else if (IsBSquare(index))
 			{
-				if (isStable) return 1000;
-				if (isSemiStable) return 200;
-				return 50;
+				return isStable ? 1000 : isSemiStable ? 200 : 50;
 			}
 			else if (IsCSquare(index))
 			{
-				if (isStable) return 1200;
-				if (isSemiStable) return 200;
-				return -25;
+				return isStable ? 1200 : isSemiStable ? 200 : -25;
 			}
 
 			return 0;
 		}
 
-		private int[] DecodeConfiguration(int index)
+		public static int GetValue(int[] config, bool isBlackTurn)
+		{
+			int index = EncodeConfiguration(config);
+			if (isBlackTurn)
+				return StabilityTable[index];
+			else
+			{
+				int[] inverse = InvertColors(config);
+				int invIndex = EncodeConfiguration(inverse);
+				return -StabilityTable[invIndex];
+			}
+		}
+
+		// --- Helpers ---
+
+		private static int[] DecodeConfiguration(int index)
 		{
 			int[] config = new int[EdgeLength];
 			for (int i = EdgeLength - 1; i >= 0; i--)
@@ -105,7 +118,7 @@ namespace Othello
 			return config;
 		}
 
-		private int EncodeConfiguration(int[] config)
+		private static int EncodeConfiguration(int[] config)
 		{
 			int index = 0;
 			for (int i = 0; i < EdgeLength; i++)
@@ -115,7 +128,7 @@ namespace Othello
 			return index;
 		}
 
-		private int CountDiscs(int[] config)
+		private static int CountDiscs(int[] config)
 		{
 			int count = 0;
 			foreach (int cell in config)
@@ -124,52 +137,37 @@ namespace Othello
 			return count;
 		}
 
-		private List<int> GetPlayableMoves(int[] config, int player)
+		private static List<int> GetPlayableMoves(int[] config, int player)
 		{
 			var moves = new List<int>();
 			for (int i = 0; i < EdgeLength; i++)
 			{
 				if (config[i] == EMPTY)
 				{
-					if (i > 0 && config[i - 1] == 3 - player || i < EdgeLength - 1 && config[i + 1] == 3 - player)
+					if ((i > 0 && config[i - 1] == 3 - player) || (i < EdgeLength - 1 && config[i + 1] == 3 - player))
 						moves.Add(i);
 				}
 			}
 			return moves;
 		}
 
-		public int GetValue(int[] config, bool isBlackTurn)
-		{
-			int index = EncodeConfiguration(config);
-			if (isBlackTurn)
-				return stabilityTable[index];
-			else
-			{
-				int[] inverse = InvertColors(config);
-				int invIndex = EncodeConfiguration(inverse);
-				return -stabilityTable[invIndex];
-			}
-		}
-
-		private int[] InvertColors(int[] config)
+		private static int[] InvertColors(int[] config)
 		{
 			int[] inverted = new int[EdgeLength];
 			for (int i = 0; i < EdgeLength; i++)
 			{
-				if (config[i] == BLACK) inverted[i] = WHITE;
-				else if (config[i] == WHITE) inverted[i] = BLACK;
-				else inverted[i] = EMPTY;
+				inverted[i] = config[i] == BLACK ? WHITE :
+							  config[i] == WHITE ? BLACK : EMPTY;
 			}
 			return inverted;
 		}
 
+		private static bool IsCorner(int i) => i == 0 || i == 7;
+		private static bool IsCSquare(int i) => i == 1 || i == 6;
+		private static bool IsASquare(int i) => i == 2 || i == 5;
+		private static bool IsBSquare(int i) => i == 3 || i == 4;
 
-		private bool IsCorner(int i) => i == 0 || i == 7;
-		private bool IsCSquare(int i) => i == 1 || i == 6;
-		private bool IsASquare(int i) => i == 2 || i == 5;
-		private bool IsBSquare(int i) => i == 3 || i == 4;
-
-		private bool IsStable(int i, int disc, int[] config)
+		private static bool IsStable(int i, int disc, int[] config)
 		{
 			if (IsCorner(i)) return true;
 			if (i < 4)
@@ -185,9 +183,9 @@ namespace Othello
 			return true;
 		}
 
-		private bool IsSemiStable(int i, int disc, int[] config)
+		private static bool IsSemiStable(int i, int disc, int[] config)
 		{
-			return i > 0 && config[i - 1] == disc || i < EdgeLength - 1 && config[i + 1] == disc;
+			return (i > 0 && config[i - 1] == disc) || (i < EdgeLength - 1 && config[i + 1] == disc);
 		}
 	}
 }
