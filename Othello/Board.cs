@@ -116,7 +116,8 @@ namespace Othello
 
 			return validMoves;
 		}
-		public bool HasValidMove(Player player, char[,]? boardState = null) // TODO: maybe remove
+
+		public bool HasValidMove(Player player, char[,]? boardState = null)
 		{
 			if (boardState == null)
 			{

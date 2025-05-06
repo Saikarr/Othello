@@ -6,22 +6,9 @@ using System.Threading.Tasks;
 
 namespace Othello
 {
-	public static class MoveEvaluator // TODO: implement proper usage of heuristics, current is very crude (and not functional, we need to evaluate the state of the board, not the move itself
-									  // because thats how minimax works)
+	public static class MoveEvaluator
 	{
-		// Positional weights for heuristic evaluation
-		private static readonly int[,] positionWeights = new int[8, 8]
-		{
-			{ 120, -20,  20,   5,   5,  20, -20, 120 },
-			{ -20, -40,  -5,  -5,  -5,  -5, -40, -20 },
-			{  20,  -5,  15,   3,   3,  15,  -5,  20 },
-			{   5,  -5,   3,   3,   3,   3,  -5,   5 },
-			{   5,  -5,   3,   3,   3,   3,  -5,   5 },
-			{  20,  -5,  15,   3,   3,  15,  -5,  20 },
-			{ -20, -40,  -5,  -5,  -5,  -5, -40, -20 },
-			{ 120, -20,  20,   5,   5,  20, -20, 120 }
-		};
-		static int mobilitycoef = 1000;
+		private static readonly int MobilityCoef = 1000;
 		public static (int row, int col, int score) FindBestMove(Player player, Board board, int minimaxDepth)
 		{
 			var validMoves = board.GetValidMoves(player);
@@ -57,7 +44,7 @@ namespace Othello
 
 			var validMoves = board.GetValidMoves(currentPlayer, boardState);
 
-			if (isMaximizing) // slightly changed, dont know if for better
+			if (isMaximizing)
 			{
 				int maxEval = int.MinValue;
 				foreach (var (row, col) in validMoves)
@@ -68,11 +55,8 @@ namespace Othello
 					int eval = Minimax(board, newBoard, OthelloGame.GetOpponent(currentPlayer), depth - 1, alpha, beta, false);
 					maxEval = Math.Max(maxEval, eval);
 
-					if (beta <= maxEval) break;
-					alpha = Math.Max(alpha, maxEval);
-
-					//alpha = Math.Max(alpha, eval);
-					//if (beta <= alpha) break;
+					alpha = Math.Max(alpha, eval);
+					if (beta <= alpha) break;
 				}
 				return maxEval;
 			}
@@ -88,74 +72,38 @@ namespace Othello
 					int eval = Minimax(board, newBoard, OthelloGame.GetOpponent(currentPlayer), depth - 1, alpha, beta, true);
 					minEval = Math.Min(minEval, eval);
 
-					if (minEval <= alpha) break;
-					beta = Math.Min(beta, minEval);
-
-					//beta = Math.Min(beta, eval);
-					//if (beta <= alpha) break;
+					beta = Math.Min(beta, eval);
+					if (beta <= alpha) break;
 				}
 				return minEval;
 			}
 		}
 
-		private static int EvaluateBoard(Board board, char[,] boardState, Player forPlayer)
+		private static int EvaluateBoard(Board board, char[,] boardState, Player player)
 		{
-			int playerScore = 0;
-			int opponentScore = 0;
-			char playerSymbol = board.PlayerSymbols[forPlayer];
-			char opponentSymbol = board.PlayerSymbols[OthelloGame.GetOpponent(forPlayer)];
+			float totalScore;
 
-			for (int row = 0; row < board.Size; row++)
-			{
-				for (int col = 0; col < board.Size; col++)
-				{
-					if (boardState[row, col] == playerSymbol)
-					{
-						playerScore += positionWeights[row, col];
-					}
-					else if (boardState[row, col] == opponentSymbol)
-					{
-						opponentScore += positionWeights[row, col];
-					}
-				}
-			}
-
-			// Mobility calculation
-			int playerMobility = board.GetValidMoves(forPlayer, boardState).Count;
-			int opponentMobility = board.GetValidMoves(OthelloGame.GetOpponent(forPlayer), boardState).Count;
-
-			// Corner control bonus
-			int playerCorners = Heuristics.CountCorners(forPlayer, boardState, board);
-			int opponentCorners = Heuristics.CountCorners(OthelloGame.GetOpponent(forPlayer), boardState, board);
+			int positionalScore = Heuristics.CalculatePositionalWeight(board, boardState, player);
+			float mobilityScore = Heuristics.CalculateMobilityImpact(player, boardState, board);
+			int stabilityScore = Heuristics.CalculateEdgeStability(player, board);
+			int internalStabilityScore = Heuristics.CalculateInternalStability(board, player);
+			int cornerScore = Heuristics.CalculateCornerControl(board, player);
 
 			// Combine factors with weights
-			int score = (playerScore - opponentScore)
-					   + (playerMobility - opponentMobility) * 5
-					   + (playerCorners - opponentCorners) * 25;
+			totalScore = positionalScore + mobilityScore * 5 + stabilityScore * 2 + internalStabilityScore + cornerScore * 25;
 
-			return score;
+			return (int)totalScore;
 		}
 
-		public static int EvaluateMove(int row, int col, Player player, Board board, char[,] boardState) // This one isnt really functional because it evaluates the move, thats just an example
+		public static int EvaluateMove(int row, int col, Player player, Board board, char[,] boardState)
 		{
-			char playerSymbol = board.PlayerSymbols[player];
-			char opponentSymbol = board.PlayerSymbols[OthelloGame.GetOpponent(player)];
 			int totalScore = 0;
 
-			// 1. Immediate point advantage (number of pieces flipped)
-			int piecesFlipped = Heuristics.CountPiecesFlipped(row, col, player, boardState, board);
-
-			// 2. Positional advantage (corner and edge control)
-			int positionalValue = positionWeights[row, col];
-
-			// 3. Mobility (number of future moves this move enables)
-			float mobility = Heuristics.CalculateMobilityImpact(row, col, player, boardState, board);
-
-			// 4. Stability (how likely the piece is to stay flipped)
-			int stability = Heuristics.CalculateEdgeStability(row, col, player, board);
-			int internalstability = Heuristics.CalculateInternalStability(board,player);
+			float mobility = Heuristics.CalculateMobilityImpact(player, boardState, board);
+			int stability = Heuristics.CalculateEdgeStability(player, board);
+			int internalstability = Heuristics.CalculateInternalStability(board, player);
 			// Combine factors with weights
-			totalScore =  (int)(mobility * mobilitycoef) + (stability * 2)+internalstability;
+			totalScore = (int)(mobility * MobilityCoef) + (stability * 2) + internalstability;
 
 			return totalScore;
 		}

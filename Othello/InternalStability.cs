@@ -7,10 +7,10 @@
 	{
 		private static readonly (int dr, int dc)[] Directions = new (int, int)[]
 		{
-		(-1, 0), (1, 0), 
-        (0, -1), (0, 1),   
-        (-1, -1), (1, 1),   
-        (-1, 1), (1, -1)   
+		(-1, 0), (1, 0),
+		(0, -1), (0, 1),
+		(-1, -1), (1, 1),
+		(-1, 1), (1, -1)
 		};
 
 		public static int CalculateInternalStabilityDifference(Board board)
@@ -20,7 +20,6 @@
 			bool[,] stable = new bool[size, size];
 			Queue<(int, int)> queue = new();
 
-
 			foreach (var (r, c) in new[] { (0, 0), (0, 7), (7, 0), (7, 7) })
 			{
 				if (state[r, c] != '.')
@@ -29,7 +28,6 @@
 					queue.Enqueue((r, c));
 				}
 			}
-
 
 			while (queue.Count > 0)
 			{
@@ -68,12 +66,11 @@
 
 		private static bool IsStableInAllFourLines(int r, int c, char color, bool[,] stable, char[,] state, int size)
 		{
-
 			return
-				HasStableOrEdge(r, c, -1, 0, color, stable, state, size) && 
-				HasStableOrEdge(r, c, 1, 0, color, stable, state, size) &&  
-				HasStableOrEdge(r, c, 0, -1, color, stable, state, size) && 
-				HasStableOrEdge(r, c, 0, 1, color, stable, state, size);    
+				HasStableOrEdge(r, c, -1, 0, color, stable, state, size) &&
+				HasStableOrEdge(r, c, 1, 0, color, stable, state, size) &&
+				HasStableOrEdge(r, c, 0, -1, color, stable, state, size) &&
+				HasStableOrEdge(r, c, 0, 1, color, stable, state, size);
 		}
 
 		private static bool HasStableOrEdge(int r, int c, int dr, int dc, char color, bool[,] stable, char[,] state, int size)

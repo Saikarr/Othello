@@ -105,7 +105,6 @@ namespace Othello
 			}
 		}
 
-
 		private static int[] DecodeConfiguration(int index)
 		{
 			int[] config = new int[EdgeLength];

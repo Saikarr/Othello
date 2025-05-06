@@ -6,8 +6,21 @@ using System.Threading.Tasks;
 
 namespace Othello
 {
-	public static class Heuristics // TODO: fix and add heuristics (these arent really functional, they have to evaluate the state of the board not the move)
+	public static class Heuristics
 	{
+
+		// Positional weights for heuristic evaluation
+		private static readonly int[,] positionWeights = new int[8, 8]
+		{
+			{ 120, -20,  20,   5,   5,  20, -20, 120 },
+			{ -20, -40,  -5,  -5,  -5,  -5, -40, -20 },
+			{  20,  -5,  15,   3,   3,  15,  -5,  20 },
+			{   5,  -5,   3,   3,   3,   3,  -5,   5 },
+			{   5,  -5,   3,   3,   3,   3,  -5,   5 },
+			{  20,  -5,  15,   3,   3,  15,  -5,  20 },
+			{ -20, -40,  -5,  -5,  -5,  -5, -40, -20 },
+			{ 120, -20,  20,   5,   5,  20, -20, 120 }
+		};
 		public static char GetSymbol(Player player)
 		{
 			return player == Player.Black ? 'B' : 'W';
@@ -17,9 +30,7 @@ namespace Othello
 			return player == Player.Black ? Player.White : Player.Black;
 		}
 
-
-
-		public static int CalculatePieceCount(Board board, Player player)
+		public static int CalculatePieceCount(Board board, Player player) // could be more efficient if counted during makemove
 		{
 			char playerSymbol = GetSymbol(player);
 			char opponentSymbol = GetSymbol(GetOpponent(player));
@@ -34,6 +45,20 @@ namespace Othello
 
 			return playerCount - opponentCount;
 		}
+
+		public static float CalculateMobilityImpact(Player player, char[,] boardState, Board board)
+		{
+			// Count valid moves for player
+			int playerMoves = CalculateValidMoves(player, boardState, board);
+
+			// Count valid moves for opponent
+			int opponentMoves = CalculateValidMoves(OthelloGame.GetOpponent(player), boardState, board);
+
+			return (playerMoves - opponentMoves) / (float)(playerMoves + opponentMoves + 2);
+		}
+
+		// TODO: potential mobility
+
 		public static int CalculateCornerControl(Board board, Player player)
 		{
 			char playerSymbol = GetSymbol(player);
@@ -48,43 +73,22 @@ namespace Othello
 				else if (board.BoardState[x, y] == opponentSymbol) opponentCorners++;
 			}
 
-			return 25 * (playerCorners - opponentCorners);
+			return playerCorners - opponentCorners;
 		}
 
-
-		public static float CalculateMobilityImpact(int row, int col, Player player, char[,] boardState, Board board)
+		public static int CalculateInternalStability(Board board, Player player)
 		{
-			// Make a copy of the board to simulate the move
-			char[,] tempBoard = (char[,])boardState.Clone();
-			tempBoard[row, col] = board.PlayerSymbols[player];
-			board.MakeMove(row, col, player, tempBoard);
-
-			// Count valid moves for player after this move
-			int playerMoves = CountValidMoves(player, tempBoard, board);
-
-			// Count valid moves for opponent after this move
-			int opponentMoves = CountValidMoves(OthelloGame.GetOpponent(player), tempBoard, board);
-
-			return (playerMoves-opponentMoves)/(float)(playerMoves+opponentMoves+2);
-		}
-
-		public static int CountValidMoves(Player player, char[,] boardState, Board board)
-		{
-			int count = 0;
-			for (int row = 0; row < board.Size; row++)
+			if (player == Player.Black)
 			{
-				for (int col = 0; col < board.Size; col++)
-				{
-					if (board.IsValidMove(row, col, player, boardState)) 
-					{
-						count++;
-					}
-				}
+				return InternalStability.CalculateInternalStabilityDifference(board);
 			}
-			return count;
+			else
+			{
+				return -InternalStability.CalculateInternalStabilityDifference(board);
+			}
 		}
 
-		public static int CalculateEdgeStability(int row, int col, Player player, Board board)
+		public static int CalculateEdgeStability(Player player, Board board)
 		{
 			char[,] state = board.BoardState;
 			int size = state.GetLength(0);
@@ -103,15 +107,15 @@ namespace Othello
 						for (int i = 0; i < 8; i++)
 							edge[i] = Convert(state[0, i]);
 						break;
-					case 1: 
+					case 1:
 						for (int i = 0; i < 8; i++)
 							edge[i] = Convert(state[7, i]);
 						break;
-					case 2: 
+					case 2:
 						for (int i = 0; i < 8; i++)
 							edge[i] = Convert(state[i, 0]);
 						break;
-					case 3: 
+					case 3:
 						for (int i = 0; i < 8; i++)
 							edge[i] = Convert(state[i, 7]);
 						break;
@@ -129,12 +133,55 @@ namespace Othello
 			}
 
 			return total;
+		}
 
-		}
-		public static int CalculateInternalStability(Board board,Player player)
+		// TODO: edge control
+
+		// TODO: center control
+
+		public static int CalculatePositionalWeight(Board board, char[,] boardState, Player player) // could be more efficient if counted during makemove	
 		{
-			if (player==Player.Black)return InternalStability.CalculateInternalStabilityDifference(board);
-			else return -InternalStability.CalculateInternalStabilityDifference(board);
+			char playerSymbol = board.PlayerSymbols[player];
+			char opponentSymbol = board.PlayerSymbols[OthelloGame.GetOpponent(player)];
+
+			int playerScore = 0;
+			int opponentScore = 0;
+
+			for (int row = 0; row < board.Size; row++)
+			{
+				for (int col = 0; col < board.Size; col++)
+				{
+					if (boardState[row, col] == playerSymbol)
+					{
+						playerScore += positionWeights[row, col];
+					}
+					else if (boardState[row, col] == opponentSymbol)
+					{
+						opponentScore += positionWeights[row, col];
+					}
+				}
+			}
+
+			return playerScore - opponentScore;
 		}
+
+		public static int CalculateValidMoves(Player player, char[,] boardState, Board board)
+		{
+			int count = 0;
+			for (int row = 0; row < board.Size; row++)
+			{
+				for (int col = 0; col < board.Size; col++)
+				{
+					if (board.IsValidMove(row, col, player, boardState))
+					{
+						count++;
+					}
+				}
+			}
+			return count;
+		}
+
+		
+		
 	}
 }
