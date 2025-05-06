@@ -21,7 +21,7 @@ namespace Othello
 			{ -20, -40,  -5,  -5,  -5,  -5, -40, -20 },
 			{ 120, -20,  20,   5,   5,  20, -20, 120 }
 		};
-
+		static int mobilitycoef = 1000;
 		public static (int row, int col, int score) FindBestMove(Player player, Board board, int minimaxDepth)
 		{
 			var validMoves = board.GetValidMoves(player);
@@ -149,13 +149,13 @@ namespace Othello
 			int positionalValue = positionWeights[row, col];
 
 			// 3. Mobility (number of future moves this move enables)
-			int mobility = Heuristics.CalculateMobilityImpact(row, col, player, boardState, board);
+			float mobility = Heuristics.CalculateMobilityImpact(row, col, player, boardState, board);
 
 			// 4. Stability (how likely the piece is to stay flipped)
-			int stability = Heuristics.CalculateStability(row, col, player);
-
+			int stability = Heuristics.CalculateEdgeStability(row, col, player, board);
+			int internalstability = Heuristics.CalculateInternalStability(board,player);
 			// Combine factors with weights
-			totalScore = (piecesFlipped * 10) + (positionalValue * 5) + (mobility * 3) + (stability * 2);
+			totalScore =  (int)(mobility * mobilitycoef) + (stability * 2)+internalstability;
 
 			return totalScore;
 		}

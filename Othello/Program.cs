@@ -7,6 +7,7 @@ namespace Othello
 	{
 		static void Main(string[] args)
 		{
+			_ = EdgeStability.StabilityTable;
 			Console.WriteLine("Choose game mode:");
 			Console.WriteLine("1. Human vs Human");
 			Console.WriteLine("2. Human vs AI (AI plays White)");
