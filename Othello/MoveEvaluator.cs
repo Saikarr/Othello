@@ -93,7 +93,7 @@ namespace Othello
 			// Combine factors with weights
 			switch (option)
 			{
-				case 0:
+				case 0: // default option and blackAI
 					totalScore = pieceCount * 1
 						+ mobilityScore * 5
 						+ cornerScore * 50
@@ -101,7 +101,7 @@ namespace Othello
 						+ edgeStabilityScore * 10
 						+ positionalScore * 1;
 					break;
-				case 1:
+				case 1: // whiteAI
 					totalScore = pieceCount * 4
 						+ mobilityScore * 2
 						+ cornerScore * 10
