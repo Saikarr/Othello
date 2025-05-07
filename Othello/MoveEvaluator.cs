@@ -9,7 +9,7 @@ namespace Othello
 	public static class MoveEvaluator
 	{
 		private static readonly int MobilityCoef = 1000;
-		public static (int row, int col, int score) FindBestMove(Player player, Board board, int minimaxDepth)
+		public static (int row, int col, int score) FindBestMove(Player player, Board board, int minimaxDepth, int option = 0)
 		{
 			var validMoves = board.GetValidMoves(player);
 			if (!validMoves.Any()) return (-1, -1, 0);
@@ -22,7 +22,7 @@ namespace Othello
 				char[,] newBoard = (char[,])board.BoardState.Clone();
 				board.MakeMove(row, col, player, newBoard);
 
-				int score = Minimax(board, newBoard, OthelloGame.GetOpponent(player), minimaxDepth - 1, int.MinValue, int.MaxValue, false);
+				int score = Minimax(board, newBoard, OthelloGame.GetOpponent(player), minimaxDepth - 1, int.MinValue, int.MaxValue, false, option);
 
 				if (score > bestScore)
 				{
@@ -34,12 +34,12 @@ namespace Othello
 			return (bestMove.row, bestMove.col, bestScore);
 		}
 
-		private static int Minimax(Board board, char[,] boardState, Player currentPlayer, int depth, int alpha, int beta, bool isMaximizing)
+		private static int Minimax(Board board, char[,] boardState, Player currentPlayer, int depth, int alpha, int beta, bool isMaximizing, int option)
 		{
 			// Base case: terminal node or depth limit reached
 			if (depth == 0 || !board.HasValidMove(currentPlayer, boardState))
 			{
-				return EvaluateBoard(board, boardState, isMaximizing ? currentPlayer : OthelloGame.GetOpponent(currentPlayer));
+				return EvaluateBoard(board, boardState, isMaximizing ? currentPlayer : OthelloGame.GetOpponent(currentPlayer), option);
 			}
 
 			var validMoves = board.GetValidMoves(currentPlayer, boardState);
@@ -52,7 +52,7 @@ namespace Othello
 					char[,] newBoard = (char[,])boardState.Clone();
 					board.MakeMove(row, col, currentPlayer, newBoard);
 
-					int eval = Minimax(board, newBoard, OthelloGame.GetOpponent(currentPlayer), depth - 1, alpha, beta, false);
+					int eval = Minimax(board, newBoard, OthelloGame.GetOpponent(currentPlayer), depth - 1, alpha, beta, false, option);
 					maxEval = Math.Max(maxEval, eval);
 
 					alpha = Math.Max(alpha, eval);
@@ -69,7 +69,7 @@ namespace Othello
 					newBoard[row, col] = board.PlayerSymbols[currentPlayer];
 					board.MakeMove(row, col, currentPlayer, newBoard);
 
-					int eval = Minimax(board, newBoard, OthelloGame.GetOpponent(currentPlayer), depth - 1, alpha, beta, true);
+					int eval = Minimax(board, newBoard, OthelloGame.GetOpponent(currentPlayer), depth - 1, alpha, beta, true, option);
 					minEval = Math.Min(minEval, eval);
 
 					beta = Math.Min(beta, eval);
@@ -79,19 +79,38 @@ namespace Othello
 			}
 		}
 
-		private static int EvaluateBoard(Board board, char[,] boardState, Player player)
+		private static int EvaluateBoard(Board board, char[,] boardState, Player player, int option)
 		{
-			float totalScore;
+			float totalScore = 0;
 
-			int positionalScore = Heuristics.CalculatePositionalWeight(board, boardState, player);
+			int pieceCount = Heuristics.CalculatePieceCount(board, player);
 			float mobilityScore = Heuristics.CalculateMobilityImpact(player, boardState, board);
-			int stabilityScore = Heuristics.CalculateEdgeStability(player, board);
-			int internalStabilityScore = Heuristics.CalculateInternalStability(board, player);
 			int cornerScore = Heuristics.CalculateCornerControl(board, player);
+			int internalStabilityScore = Heuristics.CalculateInternalStability(board, player);
+			int edgeStabilityScore = Heuristics.CalculateEdgeStability(player, board);
+			int positionalScore = Heuristics.CalculatePositionalWeight(board, boardState, player);
 
 			// Combine factors with weights
-			totalScore = positionalScore + mobilityScore * 5 + stabilityScore * 2 + internalStabilityScore + cornerScore * 25;
-
+			switch (option)
+			{
+				case 0:
+					totalScore = pieceCount * 1
+						+ mobilityScore * 5
+						+ cornerScore * 50
+						+ internalStabilityScore * 5
+						+ edgeStabilityScore * 10
+						+ positionalScore * 1;
+					break;
+				case 1:
+					totalScore = pieceCount * 4
+						+ mobilityScore * 2
+						+ cornerScore * 10
+						+ internalStabilityScore * 2 
+						+ edgeStabilityScore * 2 
+						+ positionalScore * 0;
+					break;
+			}
+	
 			return (int)totalScore;
 		}
 
